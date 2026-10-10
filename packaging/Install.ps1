@@ -1,6 +1,6 @@
 ﻿param([switch]$NoLaunch)
 $ErrorActionPreference = 'Stop'
-$destination = Join-Path $env:LOCALAPPDATA 'Programs\NookConstellation'
+$destination = 'E:\NookConstellation'
 $source = Join-Path $PSScriptRoot 'app'
 if (!(Test-Path (Join-Path $source 'Nook.Constellation.exe'))) { throw 'The app folder is missing. Extract the complete ZIP before installing.' }
 Add-Type @'
@@ -28,7 +28,7 @@ foreach ($folder in @([Environment]::GetFolderPath('Desktop'), [Environment]::Ge
 }
 $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\NookConstellation'
 New-Item -Path $key -Force | Out-Null
-$values = @{ DisplayName='隅星集 · Nook Constellation'; DisplayVersion='1.0.0'; Publisher='Nook Constellation'; InstallLocation=$destination; DisplayIcon=$exe; UninstallString=('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $destination 'Uninstall.ps1') + '"') }
+$values = @{ DisplayName='隅星集 · Nook Constellation'; DisplayVersion='1.0.1'; Publisher='Nook Constellation'; InstallLocation=$destination; DisplayIcon=$exe; UninstallString=('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $destination 'Uninstall.ps1') + '"') }
 foreach ($name in $values.Keys) { New-ItemProperty -Path $key -Name $name -Value $values[$name] -PropertyType String -Force | Out-Null }
 Write-Output "Installed: $exe"
 if (!$NoLaunch) { Start-Process -FilePath $exe }

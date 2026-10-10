@@ -3,7 +3,7 @@ $root=Split-Path $PSScriptRoot -Parent
 $oldPath=Join-Path $root 'src\Nook.Constellation\bin\Release\net8.0-windows\Nook.Constellation.exe'
 # Only stop the original empty preview started during development, never arbitrary user applications.
 Get-Process -Name Nook.Constellation -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $oldPath } | Stop-Process
-$exe=Join-Path $env:LOCALAPPDATA 'Programs\NookConstellation\Nook.Constellation.exe'
+$exe='E:\NookConstellation\Nook.Constellation.exe'
 $p=Start-Process -FilePath $exe -PassThru
 Start-Sleep -Seconds 3
 $p.Refresh()

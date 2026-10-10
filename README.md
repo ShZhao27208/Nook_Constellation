@@ -28,7 +28,7 @@ powershell -ExecutionPolicy Bypass -File scripts/verify-ui.ps1
 powershell -ExecutionPolicy Bypass -File scripts/package.ps1
 ```
 
-UI测试会操作当前桌面；测试使用独立临时目录，不写入正式任务数据。生产数据保存在 `%LOCALAPPDATA%\NookConstellation`。
+UI测试会操作当前桌面；测试使用独立临时目录，不写入正式任务数据。Windows 正式程序和任务数据保存在 `E:\NookConstellation`，任务数据库和设置位于其 `data` 子目录。
 
 图标源文件为 SVG，Windows ICO 和高清 PNG 均已提供；`scripts/generate-icons.py` 使用 Pillow 生成资源。
 

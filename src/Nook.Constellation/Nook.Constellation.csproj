@@ -6,7 +6,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <AssemblyName>Nook.Constellation</AssemblyName>
     <RootNamespace>Nook.Constellation</RootNamespace>

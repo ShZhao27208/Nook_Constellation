@@ -14,7 +14,7 @@ public sealed class Preferences
     public bool Expanded { get; set; }
     public bool AutoStart { get; set; } = true;
     public static string? OverrideDirectory { get; set; }
-    public static string DataDirectory => OverrideDirectory ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NookConstellation");
+    public static string DataDirectory => OverrideDirectory ?? Path.Combine(AppContext.BaseDirectory, "data");
     private static string FilePath => Path.Combine(DataDirectory, "settings.json");
     public static Preferences Load()
     {
