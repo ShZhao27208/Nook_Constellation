@@ -49,8 +49,10 @@ public partial class MainWindow
         bool flow = preferences.View == "任务流" || scope is "回收站" or "已完成";
         MatrixCanvas.Visibility = flow ? Visibility.Collapsed : Visibility.Visible;
         MatrixColumn.Width = new GridLength(flow ? 0 : 1, flow ? GridUnitType.Pixel : GridUnitType.Star);
-        DetailsColumn.Width = flow || preferences.Expanded ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        FlowScroller.Visibility = flow || preferences.Expanded ? Visibility.Visible : Visibility.Collapsed;
+        // In expanded quadrant mode the matrix owns the complete content area.
+        // Task-flow mode remains the detail view when selected explicitly.
+        DetailsColumn.Width = flow ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        FlowScroller.Visibility = flow ? Visibility.Visible : Visibility.Collapsed;
         ViewButton.Content = preferences.View == "任务流" ? "⊞" : "≡";
         StatusText.Text = tasks.Count + " 个任务";
         UndoButton.Visibility = DateTime.Now < undoUntil ? Visibility.Visible : Visibility.Collapsed;
@@ -98,6 +100,7 @@ public partial class MainWindow
                 Canvas.SetLeft(dot, real.X - 2.5); Canvas.SetTop(dot, real.Y - 2.5); MatrixCanvas.Children.Add(dot);
             }
             var label = items.Count == 1 ? RichText.Preview(first.TitleRtf, first.Title) : new TextBlock { Text = items.Count + " 个任务 · 点击展开", Foreground = Brushes.White, FontSize = 11 };
+            label.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 4, ShadowDepth = 0, Opacity = 1 };
             label.MaxHeight = 29; label.TextTrimming = TextTrimming.CharacterEllipsis;
             var card = new Border { Width = Math.Max(35, width), Padding = new Thickness(4, 2, 4, 2), CornerRadius = new CornerRadius(5), Background = new SolidColorBrush(Color.FromArgb(70, 22, 32, 50)), BorderThickness = new Thickness(items.Any(t => t.State == TaskState.Doing) ? 1.5 : 0.5), BorderBrush = items.Any(t => t.State == TaskState.Doing) ? Brushes.Gold : Ui.Muted, Child = label, Cursor = Cursors.Hand, ToolTip = items.Count == 1 ? Details(first) : string.Join("\n", items.Select(t => t.Title)) };
             card.Effect = new DropShadowEffect { Color = items.Any(t => t.State == TaskState.Doing) ? Colors.Gold : Colors.Black, BlurRadius = 6, ShadowDepth = 0, Opacity = 0.6 };

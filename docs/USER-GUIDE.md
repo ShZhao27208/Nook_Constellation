@@ -4,11 +4,11 @@
 
 适用 Windows 10 2004 及以上、Windows 11，x64。安装包自带 .NET 运行环境。
 
-1. 完整解压 `Nook-Constellation-1.0.0-win-x64.zip`。
+1. 完整解压 `Nook-Constellation-1.0.2-win-x64.zip`。
 2. 双击 `Install.cmd`；无需管理员权限。
 3. 安装后自动启动；以后可使用桌面或开始菜单的“隅星集”快捷方式。
 
-程序位于 `%LOCALAPPDATA%\Programs\NookConstellation`，任务数据位于 `%LOCALAPPDATA%\NookConstellation`。窗口固定右下角，不支持拖动和自由调整大小。
+程序位于 `E:\NookConstellation`，任务数据库、设置和备份位于 `E:\NookConstellation\data`。窗口固定右下角，不支持拖动和自由调整大小。
 
 ## 记下任务
 

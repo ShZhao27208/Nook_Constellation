@@ -8,6 +8,6 @@ Remove-Item -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninst
 foreach ($folder in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))) {
  Remove-Item -LiteralPath (Join-Path $folder '隅星集.lnk') -ErrorAction SilentlyContinue
 }
-Remove-Item -LiteralPath $destination -Recurse -Force
+Get-ChildItem -LiteralPath $destination -Force | Where-Object { $_.Name -ne 'data' } | Remove-Item -Recurse -Force
 Add-Type -AssemblyName System.Windows.Forms
 [System.Windows.Forms.MessageBox]::Show('程序已卸载。任务数据和备份仍保存在 E:\NookConstellation\data。', '隅星集') | Out-Null
