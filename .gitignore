@@ -3,3 +3,5 @@
 .vs/
 artifacts/
 .local/
+__pycache__/
+*.pyc

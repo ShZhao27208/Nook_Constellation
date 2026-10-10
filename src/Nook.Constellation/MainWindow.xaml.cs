@@ -17,6 +17,9 @@ public partial class MainWindow : Window
     private bool exiting;
     private const int ExtendedStyle = -20;
     private const long TransparentStyle = 0x20, LayeredStyle = 0x80000, ToolWindowStyle = 0x80;
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr FindWindow(string? className, string title);
+    [DllImport("user32.dll")] private static extern bool PostMessage(IntPtr hwnd, int message, IntPtr wparam, IntPtr lparam);
+    public static void ActivateExisting() { var handle = FindWindow(null, "隅星集 · Nook Constellation"); if (handle != IntPtr.Zero) PostMessage(handle, 0x8001, IntPtr.Zero, IntPtr.Zero); }
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern IntPtr GetStyle(IntPtr hwnd, int index);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] private static extern IntPtr SetStyle(IntPtr hwnd, int index, IntPtr value);
     public MainWindow()
@@ -24,7 +27,8 @@ public partial class MainWindow : Window
         InitializeComponent();
         preferences = Preferences.Load();
         Topmost = preferences.AlwaysOnTop;
-        tray = new Forms.NotifyIcon { Text = "隅星集 · Nook Constellation", Icon = System.Drawing.SystemIcons.Application, Visible = true };
+        InitializeTasks();
+        tray = new Forms.NotifyIcon { Text = "隅星集 · Nook Constellation", Icon = new System.Drawing.Icon(Application.GetResourceStream(new Uri("pack://application:,,,/tray.ico")).Stream), Visible = true };
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("显示隅星集", null, (_, _) => Dispatcher.Invoke(ShowWidget));
         lockItem = new Forms.ToolStripMenuItem("锁定（鼠标穿透）", null, (_, _) => Dispatcher.Invoke(() => SetLocked(!locked)));
@@ -32,10 +36,14 @@ public partial class MainWindow : Window
         menu.Items.Add(lockItem); menu.Items.Add(topItem);
         menu.Items.Add("设置", null, (_, _) => Dispatcher.Invoke(OpenSettings));
         menu.Items.Add(new Forms.ToolStripSeparator());
-        menu.Items.Add("退出", null, (_, _) => Dispatcher.Invoke(() => { exiting = true; Close(); Application.Current.Shutdown(); }));
+        menu.Items.Add("退出", null, (_, _) => Dispatcher.Invoke(RequestExit));
         tray.ContextMenuStrip = menu;
         tray.DoubleClick += (_, _) => Dispatcher.Invoke(ShowWidget);
-        SourceInitialized += (_, _) => { SetLocked(false); PositionWindow(); };
+        SourceInitialized += (_, _) =>
+        {
+            HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook((IntPtr hwnd, int msg, IntPtr wp, IntPtr lp, ref bool handled) => { if (msg == 0x8001) { ShowWidget(); handled = true; } if (msg == 0x8002) { RequestExit(); handled = true; } return IntPtr.Zero; });
+            SetLocked(false); PositionWindow();
+        };
         SystemEvents.DisplaySettingsChanged += DisplayChanged;
         SystemParameters.StaticPropertyChanged += WorkAreaChanged;
         try { preferences.ApplyAutoStart(); preferences.Save(); }
@@ -76,28 +84,10 @@ public partial class MainWindow : Window
         { MessageBox.Show("设置保存失败：" + e.Message, "隅星集"); }
     }
     private void SetTopmost(bool value) { Topmost = value; preferences.AlwaysOnTop = value; topItem.Checked = value; SavePreferences(); }
-    private void ExpandClick(object sender, RoutedEventArgs e) { preferences.Expanded = !preferences.Expanded; PositionWindow(); SavePreferences(); }
+    private void ExpandClick(object sender, RoutedEventArgs e) { preferences.Expanded = !preferences.Expanded; PositionWindow(); SavePreferences(); RenderTasks(); }
     private void HideClick(object sender, RoutedEventArgs e) => Hide();
     private void SettingsClick(object sender, RoutedEventArgs e) => OpenSettings();
-    private void OpenSettings()
-    {
-        ShowWidget();
-        var panel = new StackPanel { Margin = new Thickness(22) };
-        var top = new CheckBox { Content = "始终置顶", IsChecked = preferences.AlwaysOnTop, Margin = new Thickness(0, 8, 0, 8) };
-        var startup = new CheckBox { Content = "开机启动", IsChecked = preferences.AutoStart, Margin = new Thickness(0, 8, 0, 8) };
-        top.Click += (_, _) => SetTopmost(top.IsChecked == true);
-        startup.Click += (_, _) =>
-        {
-            bool old = preferences.AutoStart;
-            preferences.AutoStart = startup.IsChecked == true;
-            try { preferences.ApplyAutoStart(); SavePreferences(); }
-            catch (Exception e) when (e is System.IO.IOException or UnauthorizedAccessException or System.Security.SecurityException)
-            { preferences.AutoStart = old; startup.IsChecked = old; MessageBox.Show("无法修改开机启动：" + e.Message, "隅星集"); }
-        };
-        panel.Children.Add(top); panel.Children.Add(startup);
-        panel.Children.Add(new TextBlock { Text = "锁定与解锁请使用系统托盘菜单。", Margin = new Thickness(0, 16, 0, 0) });
-        new Window { Title = "隅星集 · 设置", Owner = this, Content = panel, Width = 340, Height = 210, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false }.ShowDialog();
-    }
+    private void RequestExit() { exiting = true; Close(); Application.Current.Shutdown(); }
     protected override void OnClosing(CancelEventArgs e)
     {
         if (!exiting) { e.Cancel = true; Hide(); }
@@ -107,7 +97,8 @@ public partial class MainWindow : Window
     {
         SystemEvents.DisplaySettingsChanged -= DisplayChanged;
         SystemParameters.StaticPropertyChanged -= WorkAreaChanged;
-        tray.Visible = false; tray.Dispose();
+        StopTasks();
+        tray.Visible = false; tray.Icon?.Dispose(); tray.Dispose();
         base.OnClosed(e);
     }
 }
