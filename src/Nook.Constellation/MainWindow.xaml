@@ -4,7 +4,7 @@
 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
 <DockPanel>
 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><Button x:Name="ExpandButton" Content="⛶" ToolTip="放大 / 还原" AutomationProperties.Name="放大或还原" Click="ExpandClick"/><Button Content="×" ToolTip="隐藏到托盘" AutomationProperties.Name="隐藏到托盘" Click="HideClick"/></StackPanel>
-<TextBlock Text="隅星集" FontSize="18" VerticalAlignment="Center"><TextBlock.Effect><DropShadowEffect BlurRadius="5" ShadowDepth="1" Opacity="1"/></TextBlock.Effect></TextBlock>
+<TextBlock Text="隅星集" FontSize="18" VerticalAlignment="Center"/>
 </DockPanel>
 <Grid Grid.Row="1" Margin="0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="75"/><ColumnDefinition Width="70"/><ColumnDefinition Width="24"/></Grid.ColumnDefinitions>
 <TextBox x:Name="SearchBox" ToolTip="搜索标题、备注、标签" AutomationProperties.Name="搜索任务" Padding="3" Background="#99202A3B" Foreground="White" BorderBrush="#667B8BA4"/>

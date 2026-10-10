@@ -132,7 +132,6 @@ public partial class MainWindow
         if (task.Deleted is null) { actions.Children.Add(Ui.Button("编辑", () => Edit(task))); actions.Children.Add(Ui.Button("删除", () => DeleteTask(task))); }
         panel.Children.Add(actions);
         var card = new Border { Child = panel, Background = new SolidColorBrush(Color.FromArgb(65, 20, 30, 46)), BorderBrush = task.State == TaskState.Doing ? Brushes.Gold : new SolidColorBrush(Color.FromArgb(130, 135, 157, 185)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(8), Margin = new Thickness(3, 3, 3, 7), ToolTip = Details(task) };
-        if (task.State == TaskState.Doing) card.Effect = new DropShadowEffect { Color = Colors.Gold, BlurRadius = 8, ShadowDepth = 0, Opacity = 0.4 };
         card.MouseLeftButtonUp += (_, e) => { if (e.OriginalSource is not Button && FindButton(e.OriginalSource as DependencyObject) is null) Edit(task); };
         AttachTaskActions(card, task); return card;
     }
