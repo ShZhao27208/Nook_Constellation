@@ -28,6 +28,10 @@ public static class ReminderEngine
                 if (task.Start is { } start) Add(task, "start", start, "该开始任务了");
                 else Add(task, "day", task.PlanDate.Date.AddHours(settings.SummaryHour).AddMinutes(settings.SummaryMinute), "今天要做的任务");
             }
+            foreach(var sub in task.Subtasks.Where(s => !s.Done)) {
+                if(sub.Start is {} subStart) Add(task, "sub-" + sub.Id + "-start", subStart, "该开始子任务：" + sub.Title);
+                if(sub.Deadline is {} subEnd) Add(task, "sub-" + sub.Id + "-deadline", subEnd.AddMinutes(-settings.DeadlineMinutes), "子任务截止提醒：" + sub.Title);
+            }
             if (task.Deadline is { } deadline) Add(task, "deadline", deadline.AddMinutes(-settings.DeadlineMinutes), deadline < now ? "任务已超过截止时间" : "任务即将截止");
         }
         return due;

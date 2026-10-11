@@ -6,6 +6,7 @@ namespace Nook.Constellation;
 public sealed class Preferences
 {
     public string View { get; set; } = "四象限";
+    public double FontSize { get; set; } = 13;
     public bool Particles { get; set; } = true;
     public int DeadlineMinutes { get; set; } = 15;
     public int SummaryHour { get; set; } = 9;

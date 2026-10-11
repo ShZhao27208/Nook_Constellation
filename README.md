@@ -6,7 +6,7 @@ Windows 透明桌面任务组件，固定右下角，以四象限或任务流安
 
 ## 使用
 
-解压 `Nook-Constellation-1.0.0-win-x64.zip`，双击 `Install.cmd`。无需管理员权限，自带 .NET 运行环境，适用 Windows 10 2004+ / Windows 11 x64。
+解压 `Nook-Constellation-1.2.0-win-x64.zip`，双击 `Install.cmd`。无需管理员权限，自带 .NET 运行环境，适用 Windows 10 2004+ / Windows 11 x64。
 
 支持任务新增与编辑、标题和备注富文本、计划与截止时间、标签、评分、重复任务、状态高亮、系统通知、搜索筛选、历史与回收站、JSON导入导出、Markdown导出和每日备份。
 
@@ -33,3 +33,5 @@ UI测试会操作当前桌面；测试使用独立临时目录，不写入正式
 图标源文件为 SVG，Windows ICO 和高清 PNG 均已提供；`scripts/generate-icons.py` 使用 Pillow 生成资源。
 
 版本记录见 `CHANGELOG.zh.md`。按用户要求完成后统一更新版本、推送分支与标签；推送记录保存在本机 `.local/push-records.md`，并同步到指定 Obsidian 目录。
+
+支持父任务下的子任务与进度；标题和备注同页编辑，时间可选择，富文本详情保留颜色与字号。

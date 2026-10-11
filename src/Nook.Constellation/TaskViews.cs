@@ -6,7 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Media.Effects;
+using System.Windows.Controls.Primitives;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 namespace Nook.Constellation;
@@ -25,14 +25,16 @@ public partial class MainWindow
         store = new TaskStore(Preferences.DataDirectory); store.Materialize(DateTime.Today); lastDay = DateTime.Today;
         if (App.NotificationTest && store.Tasks.Count == 0) { var start = DateTime.Now.AddMinutes(-1); store.Save(new TaskItem { Title = "隅星集通知功能测试", PlanDate = start.Date, PlanTime = start.TimeOfDay }); }
         initialized = true;
+        hoverClose.Tick += (_,_) => { hoverClose.Stop(); detailsPopup.IsOpen = false; };
+        Deactivated += (_,_) => { detailsPopup.IsOpen = false; };
         SearchBox.TextChanged += (_, _) => RenderTasks(); TagsBox.TextChanged += (_, _) => RenderTasks(); ScopeBox.SelectionChanged += (_, _) => RenderTasks();
         MatrixCanvas.SizeChanged += (_, _) => RenderTasks();
         PreviewMouseLeftButtonDown += (_, e) => Burst(e.GetPosition(Particles));
         timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
-        timer.Tick += (_, _) => Guard(() => { if (lastDay != DateTime.Today) { store.Materialize(DateTime.Today); lastDay = DateTime.Today; } BackupDaily(); CheckReminders(); RenderTasks(); });
-        timer.Start(); Loaded += (_, _) => Guard(() => { InitializeNotifications(); BackupDaily(); CheckReminders(); RenderTasks(); });
+        timer.Tick += (_, _) => Guard(() => { if (lastDay != DateTime.Today) { store.Materialize(DateTime.Today); lastDay = DateTime.Today; } BackupDaily(); CheckReminders(); if (!IsMouseOver && !detailsPopup.IsOpen && !OwnedWindows.Cast<Window>().Any()) RenderTasks(); });
+        timer.Start(); Loaded += (_, _) => Guard(() => { InitializeNotifications(); BackupDaily(); CheckReminders(); if (!IsMouseOver && !detailsPopup.IsOpen && !OwnedWindows.Cast<Window>().Any()) RenderTasks(); });
     }
-    private void StopTasks() { timer.Stop(); store.Dispose(); }
+    private void StopTasks() { hoverClose.Stop(); detailsPopup.IsOpen = false; timer.Stop(); store.Dispose(); }
     private void Guard(Action action) { try { action(); } catch (Exception e) { StatusText.Text = "操作失败 · 查看详情"; StatusText.ToolTip = e.Message; System.IO.File.AppendAllText(System.IO.Path.Combine(Preferences.DataDirectory, "errors.log"), DateTime.Now + " " + e + Environment.NewLine); } }
     private List<TaskItem> VisibleTasks()
     {
@@ -42,11 +44,48 @@ public partial class MainWindow
             .Where(t => search.Length == 0 || (t.Title + " " + t.Notes + " " + string.Join(" ", t.Tags)).Contains(search, StringComparison.OrdinalIgnoreCase))
             .Where(t => tags.Length == 0 || t.Tags.Intersect(tags, StringComparer.OrdinalIgnoreCase).Any()).OrderBy(t => t.Group(DateTime.Now)).ThenBy(t => t.Start ?? t.PlanDate.Date.AddDays(1).AddTicks(-1)).ThenBy(t => t.Created).ToList();
     }
+    private string lastRender = "";
+    private readonly Popup detailsPopup = new() { AllowsTransparency = true, StaysOpen = true, Placement = PlacementMode.Right, PopupAnimation = PopupAnimation.None };
+    private readonly DispatcherTimer hoverClose = new() { Interval = TimeSpan.FromMilliseconds(160) };
+    private void AttachDetails(FrameworkElement anchor, List<TaskItem> tasks)
+    {
+        anchor.ToolTip = null;
+        anchor.MouseEnter += (_,_) => {
+            hoverClose.Stop();
+            var content = new StackPanel { Margin = new Thickness(22) };
+            foreach(var t in tasks) {
+                var taskContent = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
+                var title = RichText.Preview(t.TitleRtf, t.Title, paper: true); title.Margin = new Thickness(0, 0, 0, 8); taskContent.Children.Add(title);
+                taskContent.Children.Add(Ui.FieldLabel(t.Quadrant + $" · 紧急 {t.Urgency} / 重要 {t.Importance}"));
+                taskContent.Children.Add(Ui.FieldLabel(t.TimeDescription(DateTime.Now)));
+                if(t.Tags.Count > 0) taskContent.Children.Add(Ui.FieldLabel(string.Join(" · ", t.Tags.Select(tag => "#" + tag))));
+                taskContent.Children.Add(SubtaskList(t, true));
+                if (!string.IsNullOrWhiteSpace(t.Notes)) {
+                    taskContent.Children.Add(Ui.Section("备注"));
+                    taskContent.Children.Add(RichText.Preview(t.NotesRtf, t.Notes, paper: true));
+                }
+                var edit = Ui.Button("编辑任务  →", () => { detailsPopup.IsOpen = false; Edit(t); });
+                edit.HorizontalAlignment = HorizontalAlignment.Left; edit.Margin = new Thickness(0, 16, 0, 0); taskContent.Children.Add(edit);
+                content.Children.Add(new Border { Child = taskContent, BorderBrush = Ui.Rule, BorderThickness = new Thickness(0, 0, 0, 1) });
+            }
+            var surface = new Border { Background = Ui.Paper, BorderBrush = Ui.Rule, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Child = new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, Width = Math.Min(420, SystemParameters.WorkArea.Width - 32), MaxHeight = Math.Min(560, SystemParameters.WorkArea.Height - 32) };
+            Ui.ApplyTheme(surface);
+            surface.MouseEnter += (_,_) => hoverClose.Stop(); surface.MouseLeave += (_,_) => hoverClose.Start();
+            detailsPopup.PlacementTarget = anchor; detailsPopup.Child = surface; detailsPopup.IsOpen = true;
+        };
+        anchor.MouseLeave += (_,_) => hoverClose.Start();
+        anchor.PreviewMouseLeftButtonDown += (_,_) => detailsPopup.IsOpen = false;
+        anchor.Unloaded += (_,_) => { if(detailsPopup.PlacementTarget == anchor) detailsPopup.IsOpen = false; };
+    }
     private void RenderTasks()
     {
         if (!initialized) return;
         var tasks = VisibleTasks(); var scope = (ScopeBox.SelectedItem as ComboBoxItem)?.Content?.ToString();
         bool flow = preferences.View == "任务流" || scope is "回收站" or "已完成";
+        var signature = System.Text.Json.JsonSerializer.Serialize(tasks) + scope + preferences.View + preferences.Expanded + preferences.FontSize + MatrixCanvas.ActualWidth + "/" + MatrixCanvas.ActualHeight + DateTime.Now.ToString("yyyyMMddHHmm");
+        UndoButton.Visibility = DateTime.Now < undoUntil ? Visibility.Visible : Visibility.Collapsed;
+        if (signature == lastRender) return;
+        lastRender = signature;
         MatrixCanvas.Visibility = flow ? Visibility.Collapsed : Visibility.Visible;
         MatrixColumn.Width = new GridLength(flow ? 0 : 1, flow ? GridUnitType.Pixel : GridUnitType.Star);
         // In expanded quadrant mode the matrix owns the complete content area.
@@ -57,7 +96,7 @@ public partial class MainWindow
         StatusText.Text = tasks.Count + " 个任务";
         UndoButton.Visibility = DateTime.Now < undoUntil ? Visibility.Visible : Visibility.Collapsed;
         TaskList.Children.Clear();
-        if (flow || preferences.Expanded)
+        if (flow)
         {
             int group = -1;
             foreach (var t in tasks)
@@ -78,7 +117,7 @@ public partial class MainWindow
         void Line(double x1, double y1, double x2, double y2, Brush brush, double opacity = 1)
         { MatrixCanvas.Children.Add(new Line { X1 = x1, Y1 = y1, X2 = x2, Y2 = y2, Stroke = brush, Opacity = opacity, StrokeThickness = 1, IsHitTestVisible = false }); }
         void Text(string value, double x, double y, int size = 10)
-        { var t = new TextBlock { Text = value, FontSize = size, Foreground = Brushes.White, Opacity = 0.8, IsHitTestVisible = false, Effect = new DropShadowEffect { BlurRadius = 4, ShadowDepth = 0 } }; Canvas.SetLeft(t, x); Canvas.SetTop(t, y); MatrixCanvas.Children.Add(t); }
+        { var t = new TextBlock { Text = value, FontSize = size, Foreground = Brushes.White, Opacity = 0.8, IsHitTestVisible = false }; Canvas.SetLeft(t, x); Canvas.SetTop(t, y); MatrixCanvas.Children.Add(t); }
         double pad = 20, iw = w - pad * 2, ih = h - pad * 2;
         Point Position(TaskItem t) => new(pad + t.Urgency / 100.0 * iw, pad + (100 - t.Importance) / 100.0 * ih);
         Line(pad, h / 2, w - 4, h / 2, Ui.Muted); Line(w / 2, h - pad, w / 2, 3, Ui.Muted);
@@ -97,13 +136,14 @@ public partial class MainWindow
             {
                 var real = Position(task); Line(real.X, real.Y, x + width / 2, y + 11, Ui.Muted, 0.5);
                 var dot = new Ellipse { Width = 5, Height = 5, Fill = task.State == TaskState.Doing ? Brushes.Gold : Brushes.LightSkyBlue, ToolTip = $"{task.Title} · ({task.X:0.#}, {task.Y:0.#}) · {task.Quadrant}" };
+                AttachDetails(dot, new List<TaskItem> { task });
                 Canvas.SetLeft(dot, real.X - 2.5); Canvas.SetTop(dot, real.Y - 2.5); MatrixCanvas.Children.Add(dot);
             }
             var label = items.Count == 1 ? RichText.Preview(first.TitleRtf, first.Title) : new TextBlock { Text = items.Count + " 个任务 · 点击展开", Foreground = Brushes.White, FontSize = 11 };
-            label.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 4, ShadowDepth = 0, Opacity = 1 };
-            label.MaxHeight = 29; label.TextTrimming = TextTrimming.CharacterEllipsis;
+            if (items.Count == 1 && first.Subtasks.Count > 0) label.Inlines.Add(new System.Windows.Documents.Run("  [" + first.Progress + "]"));
+            label.MaxHeight = Math.Max(29, RichText.DefaultSize * 2.5); label.TextTrimming = TextTrimming.CharacterEllipsis;
             var card = new Border { Width = Math.Max(35, width), Padding = new Thickness(4, 2, 4, 2), CornerRadius = new CornerRadius(5), Background = new SolidColorBrush(Color.FromArgb(70, 22, 32, 50)), BorderThickness = new Thickness(items.Any(t => t.State == TaskState.Doing) ? 1.5 : 0.5), BorderBrush = items.Any(t => t.State == TaskState.Doing) ? Brushes.Gold : Ui.Muted, Child = label, Cursor = Cursors.Hand, ToolTip = items.Count == 1 ? Details(first) : string.Join("\n", items.Select(t => t.Title)) };
-            card.Effect = new DropShadowEffect { Color = items.Any(t => t.State == TaskState.Doing) ? Colors.Gold : Colors.Black, BlurRadius = 6, ShadowDepth = 0, Opacity = 0.6 };
+            AttachDetails(card, items);
             card.MouseLeftButtonUp += (_, _) => { if (items.Count == 1) Edit(first); else OpenCluster(items); };
             if (items.Count == 1) AttachTaskActions(card, first);
             Canvas.SetLeft(card, x); Canvas.SetTop(card, y); MatrixCanvas.Children.Add(card);
@@ -121,6 +161,7 @@ public partial class MainWindow
             panel.Children.Add(Ui.Label($"{task.Quadrant} · 紧急 {task.Urgency} / 重要 {task.Importance}"));
             if (!string.IsNullOrWhiteSpace(task.Notes)) panel.Children.Add(new ScrollViewer { Content = RichText.Preview(task.NotesRtf, task.Notes), MaxHeight = 160, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         }
+        panel.Children.Add(SubtaskList(task));
         var actions = new WrapPanel();
         if (task.Deleted is not null) actions.Children.Add(Ui.Button("恢复任务", () => Change(task, t => t.Deleted = null)));
         else if (task.State == TaskState.Completed) actions.Children.Add(Ui.Button("恢复待做", () => Change(task, t => { t.State = TaskState.Pending; t.Completed = null; })));
@@ -133,7 +174,7 @@ public partial class MainWindow
         panel.Children.Add(actions);
         var card = new Border { Child = panel, Background = new SolidColorBrush(Color.FromArgb(65, 20, 30, 46)), BorderBrush = task.State == TaskState.Doing ? Brushes.Gold : new SolidColorBrush(Color.FromArgb(130, 135, 157, 185)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(8), Margin = new Thickness(3, 3, 3, 7), ToolTip = Details(task) };
         card.MouseLeftButtonUp += (_, e) => { if (e.OriginalSource is not Button && FindButton(e.OriginalSource as DependencyObject) is null) Edit(task); };
-        AttachTaskActions(card, task); return card;
+        AttachDetails(card, new List<TaskItem> { task }); AttachTaskActions(card, task); return card;
     }
     private static Button? FindButton(DependencyObject? node)
     { while (node is not null) { if (node is Button button) return button; node = node is Visual ? VisualTreeHelper.GetParent(node) : null; } return null; }
@@ -164,7 +205,38 @@ public partial class MainWindow
         new TaskEditor(this, store, current).ShowDialog(); Guard(() => { CheckReminders(); RenderTasks(); });
     }
     private void Change(TaskItem task, Action<TaskItem> action)
-    { Guard(() => { var current = store.Tasks.FirstOrDefault(t => t.Id == task.Id); if (current is null) return; action(current); store.Save(current); RenderTasks(); }); }
+    { Guard(() => {
+        var current = store.Tasks.FirstOrDefault(t => t.Id == task.Id); if (current is null) return;
+        var previous = current.State; action(current);
+        if (previous != TaskState.Completed && current.State == TaskState.Completed && current.Subtasks.Any(s => !s.Done)) {
+            if (MessageBox.Show(this, "还有未完成的子任务，是否一并完成？", "完成父任务", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            foreach (var sub in current.Subtasks) sub.Done = true;
+        }
+        store.Save(current); detailsPopup.IsOpen = false; RenderTasks();
+    }); }
+    private UIElement SubtaskList(TaskItem parent, bool paper = false)
+    {
+        TextBlock Label(string text) => paper ? Ui.FieldLabel(text) : Ui.Label(text);
+        var panel = new StackPanel(); if(parent.Subtasks.Count == 0) return panel;
+        panel.Children.Add(Label("子任务 · " + parent.Progress));
+        foreach(var sub in parent.Subtasks) {
+            var label = new StackPanel(); label.Children.Add(new TextBlock { Text = sub.Title, TextWrapping = TextWrapping.Wrap, Foreground = paper ? Ui.Ink : Brushes.White });
+            label.Children.Add(Label($"紧急 {sub.Urgency ?? parent.Urgency} · 重要 {sub.Importance ?? parent.Importance}" + (sub.Start is {} start ? $" · 开始 {start:MM-dd HH:mm}" : " · 沿用父任务开始时间") + (sub.Deadline is {} end ? $" · 截止 {end:MM-dd HH:mm}" : "")));
+            if(!string.IsNullOrWhiteSpace(sub.Notes)) label.Children.Add(Label(sub.Notes));
+            var check = new CheckBox { Content = label, IsChecked = sub.Done, IsEnabled = parent.Deleted is null, Margin = new Thickness(0,4,0,4) };
+            check.Click += (_,e) => { e.Handled = true; Guard(() => {
+                var current = store.Tasks.FirstOrDefault(t => t.Id == parent.Id && t.Deleted is null); if(current is null) return;
+                var item = current.Subtasks.FirstOrDefault(s => s.Id == sub.Id); if(item is null) return;
+                item.Done = check.IsChecked == true;
+                if(!item.Done && current.State == TaskState.Completed) { current.State = TaskState.Pending; current.Completed = null; }
+                if(current.Subtasks.All(s => s.Done) && current.State != TaskState.Completed && MessageBox.Show(this, "所有子任务已完成，是否同时完成父任务？", "子任务进度", MessageBoxButton.YesNo) == MessageBoxResult.Yes) { current.State = TaskState.Completed; current.Completed = DateTime.Now; current.SnoozedUntil = null; }
+                store.Save(current); detailsPopup.IsOpen = false; RenderTasks();
+            }); };
+            check.MouseLeftButtonUp += (_,e) => e.Handled = true;
+            panel.Children.Add(check);
+        }
+        return panel;
+    }
     private void ToggleDoing(TaskItem task) => Change(task, t => t.State = t.State == TaskState.Doing ? TaskState.Pending : TaskState.Doing);
     private void DeleteTask(TaskItem task)
     {

@@ -136,6 +136,7 @@ public sealed class TaskStore : IDisposable
         foreach (var t in snapshot.Tasks.OrderBy(t => t.PlanDate))
         {
             b.AppendLine($"## {(t.State == TaskState.Completed ? "[x]" : "[ ]")} {t.Title.Replace("\n", " ")}");
+            foreach(var sub in t.Subtasks) b.AppendLine($"- [{(sub.Done ? "x" : " ")}] {sub.Title} · 紧急 {sub.Urgency ?? t.Urgency} / 重要 {sub.Importance ?? t.Importance} · 开始 {sub.Start ?? t.Start:yyyy-MM-dd HH:mm} · 截止 {sub.Deadline ?? t.Deadline:yyyy-MM-dd HH:mm}\n  {sub.Notes}");
             b.AppendLine($"\n- 分类：{t.Quadrant}；紧急性 {t.Urgency}，重要性 {t.Importance}\n- 状态：{t.State}{(t.Deleted is not null ? "（回收站）" : "")}\n- 计划：{t.PlanDate:yyyy-MM-dd} {t.PlanTime}\n- 截止：{t.Deadline:yyyy-MM-dd HH:mm}\n- 标签：{string.Join("、", t.Tags)}\n\n{t.Notes}\n");
         }
         File.WriteAllText(path, b.ToString());

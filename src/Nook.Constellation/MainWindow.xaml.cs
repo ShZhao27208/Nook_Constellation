@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         preferences = Preferences.Load();
+        RichText.DefaultSize = Math.Clamp(preferences.FontSize, 10, 24); FontSize = RichText.DefaultSize;
         Topmost = preferences.AlwaysOnTop;
         InitializeTasks();
         tray = new Forms.NotifyIcon { Text = "隅星集 · Nook Constellation", Icon = new System.Drawing.Icon(Application.GetResourceStream(new Uri("pack://application:,,,/tray.ico")).Stream), Visible = true };

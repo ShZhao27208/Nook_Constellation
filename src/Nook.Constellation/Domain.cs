@@ -4,6 +4,17 @@ using System.Linq;
 using System.Text.Json;
 namespace Nook.Constellation;
 public enum TaskState { Pending, Doing, Completed }
+public sealed class Subtask
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Title { get; set; } = "";
+    public string Notes { get; set; } = "";
+    public bool Done { get; set; }
+    public DateTime? Start { get; set; }
+    public DateTime? Deadline { get; set; }
+    public int? Urgency { get; set; }
+    public int? Importance { get; set; }
+}
 public sealed class TaskItem
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
@@ -11,6 +22,8 @@ public sealed class TaskItem
     public string TitleRtf { get; set; } = "";
     public string Notes { get; set; } = "";
     public string NotesRtf { get; set; } = "";
+    public List<Subtask> Subtasks { get; set; } = new();
+    public string Progress => Subtasks.Count == 0 ? "" : $"{Subtasks.Count(s => s.Done)}/{Subtasks.Count}";
     public List<string> Tags { get; set; } = new();
     public int Urgency { get; set; } = 50;
     public int Importance { get; set; } = 50;
@@ -41,6 +54,9 @@ public sealed class TaskItem
     public TaskItem Copy() => JsonSerializer.Deserialize<TaskItem>(JsonSerializer.Serialize(this))!;
     public void Validate()
     {
+        if (Subtasks is null || Subtasks.Count > 500 || Subtasks.Any(s => s is null || string.IsNullOrWhiteSpace(s.Id) || string.IsNullOrWhiteSpace(s.Title) || s.Title.Length > 4000 || s.Notes is null || s.Notes.Length > 100000 || s.Urgency is < 0 or > 100 || s.Importance is < 0 or > 100) || Subtasks.Select(s => s.Id).Distinct().Count() != Subtasks.Count)
+            throw new InvalidOperationException("子任务格式无效，标题不能为空，最多支持500项。");
+        foreach (var sub in Subtasks) if ((sub.Deadline ?? Deadline) < (sub.Start ?? Start ?? PlanDate.Date)) throw new InvalidOperationException($"子任务“{sub.Title}”的截止时间不能早于开始时间。");
         if (string.IsNullOrWhiteSpace(Title)) throw new InvalidOperationException("请填写任务标题。");
         if (Title.Length > 4000 || Notes.Length > 100000 || TitleRtf.Length > 200000 || NotesRtf.Length > 2000000) throw new InvalidOperationException("任务文字过长。");
         if (Urgency is < 0 or > 100 || Importance is < 0 or > 100) throw new InvalidOperationException("分数必须在 0–100 之间。");
@@ -70,6 +86,7 @@ public sealed class RepeatSeries
         var task = Template.Copy();
         task.Id = Id + "-" + date.ToString("yyyyMMdd"); task.SeriesId = Id;
         if (task.Deadline is { } d) task.Deadline = date.Date + (d - task.PlanDate.Date);
+        foreach (var sub in task.Subtasks) { sub.Done = false; if (sub.Start is { } start) sub.Start = date.Date + (start - task.PlanDate.Date); if (sub.Deadline is { } end) sub.Deadline = date.Date + (end - task.PlanDate.Date); }
         task.PlanDate = date.Date; task.Created = DateTime.Now; task.Updated = DateTime.Now;
         task.State = TaskState.Pending; task.Deleted = null; task.Completed = null; task.SnoozedUntil = null;
         return task;
